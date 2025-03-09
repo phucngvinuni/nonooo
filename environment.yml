@@ -1,0 +1,69 @@
+name: rsc
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  # ===== Base =====
+  - python=3.10
+  - pip
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib
+  - seaborn
+  - scikit-learn
+  - scikit-image
+  - tqdm
+  - termcolor
+  - cython
+  - opencv
+  - librosa
+  - nltk
+
+  # ===== Jupyter =====
+  - jupyter
+  - jupyterlab
+  - ipykernel
+  - ipywidgets
+
+  # ===== PyTorch & Lightning =====
+  - pytorch=2.6.0
+  - torchvision=0.21.0
+  - torchaudio
+  - pytorch-lightning=2.5.0.post0
+  - torchinfo=1.8.0
+  - thop=0.1.1-2209072238
+
+  # ===== CUDA Support =====
+  - nvidia::cuda=12.4
+  - nvidia::cudnn=9.1.0.70
+  - nvidia::nccl=2.21.5
+
+  # ===== Hugging Face Transformers =====
+  - transformers=4.48.3
+  - tokenizers=0.21.0
+  - huggingface_hub=0.28.1
+
+  # ===== Optimizers =====
+  - timm=0.6.13
+  - torch-optimizer=0.3.0
+
+  # ===== Logging & Visualization =====
+  - wandb=0.19.6
+  - tensorboard=2.18.0
+  - tensorboardx=2.6.2.2
+  - rich=13.9.4
+
+  # ===== Miscellaneous =====
+  - umap-learn=0.5.7
+  - einops=0.8.1
+  - rawpy=0.24.0
+
+  # ===== Pip-only Packages =====
+  - pip:
+      - pytorch-msssim==1.0.0
+      - python-box==7.3.2
+      - lightning-utilities==0.12.0
+      - torchmetrics==1.6.1
+      - pytorch-ranger==0.1.1
