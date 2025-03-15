@@ -1,7 +1,7 @@
-TF_ENABLE_ONEDNN_OPTS=0 CUDA_VISIBLE_DEVICES=0  python3  run_class_main.py \
-    --model  ViT_Van_model  \
+TF_ENABLE_ONEDNN_OPTS=0 CUDA_VISIBLE_DEVICES=0 CUDA_LAUNCH_BLOCKING=1 python3  run_class_main.py \
+    --model  ViT_FIM_model_S  \
     --output_dir ckpt_record   \
-    --data_set cifar_S32 \
+    --data_set fish \
     --batch_size 50 \
     --input_size 224 \
     --lr  3e-5 \
@@ -12,4 +12,3 @@ TF_ENABLE_ONEDNN_OPTS=0 CUDA_VISIBLE_DEVICES=0  python3  run_class_main.py \
     --train_type std_train \
     --if_attack_train  \
     --if_attack_test \
-    --eval

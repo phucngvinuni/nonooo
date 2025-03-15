@@ -1,6 +1,7 @@
 import argparse
 
-IMGC_NUMCLASS = 10   # CIFAR Data
+IMGC_NUMCLASS = 22   # Your fish dataset
+
 
 def get_args():
     parser = argparse.ArgumentParser('T-DeepSC training script', add_help=False)
@@ -17,7 +18,7 @@ def get_args():
     parser.add_argument('--data_path', default='data/', type=str,
                         help='dataset path')
     parser.add_argument('--data_set', default='cifar_S32', 
-                        choices=['cifar_S32','cifar_S224', 'imagenet'],
+                        choices=['cifar_S32','cifar_S224', 'imagenet','fish'],
                         type=str)
     parser.add_argument('--input_size', default=32, type=int,
                         help='images input size for data')

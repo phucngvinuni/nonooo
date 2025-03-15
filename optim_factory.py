@@ -8,7 +8,7 @@ from timm.optim.lookahead import Lookahead
 from torch_optimizer import NovoGrad
 from torch.optim import NAdam  # PyTorch 内置的 Nadam
 from timm.optim.nvnovograd import NvNovoGrad
-from timm.optim.radam import RAdam
+from timm.optim import RAdam
 from timm.optim.rmsprop_tf import RMSpropTF
 from timm.optim.sgdp import SGDP
 

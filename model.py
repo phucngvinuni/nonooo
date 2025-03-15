@@ -4,7 +4,7 @@ import pickle
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
-
+from model_util import KMeansQuantizer
 from channel import *
 from model_util import *
 from functools import partial
@@ -30,8 +30,7 @@ class ViT_Van_CLS(nn.Module):
                  encoder_embed_dim=768, encoder_depth=12,encoder_num_heads=12, decoder_num_classes=768, 
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=8, mlp_ratio=4., 
                  qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0., drop_path_rate=0., 
-                 norm_layer=nn.LayerNorm, init_values=0.,use_learnable_pos_emb=False,num_classes=0, 
-                 ):
+                 norm_layer=nn.LayerNorm, init_values=0.,use_learnable_pos_emb=False,num_classes=0,**kwargs):
         super().__init__()
         self.img_encoder = ViTEncoder_Van(img_size=img_size, patch_size=patch_size, in_chans=encoder_in_chans, 
                                 num_classes=encoder_num_classes, embed_dim=encoder_embed_dim,depth=encoder_depth,
@@ -69,7 +68,7 @@ class ViT_Van_CLS(nn.Module):
     def no_weight_decay(self):
         return {'pos_embed', 'cls_token', 'mask_token'}
 
-    def forward(self, img, bm_pos, target=None, _eval=False, test_snr=200):
+    def forward(self, img, bm_pos, targets, _eval=False, test_snr=200):
         if _eval:
             self.eval()
         else:
@@ -98,7 +97,7 @@ class ViT_FIM_CLS(nn.Module):
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=8, mlp_ratio=4., 
                  qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0., drop_path_rate=0., 
                  norm_layer=nn.LayerNorm, init_values=0.,use_learnable_pos_emb=False,num_classes=0, 
-                 pretrained_cfg=None):
+                 **kwargs):
         super().__init__()
         self.img_encoder = ViTEncoder_FIM(img_size=img_size, patch_size=patch_size, in_chans=encoder_in_chans, 
                                 num_classes=encoder_num_classes, embed_dim=encoder_embed_dim,depth=encoder_depth,
@@ -118,8 +117,10 @@ class ViT_FIM_CLS(nn.Module):
         self.bit_per_digit = 8
         self.vq_layer = VectorQuantizer(num_embeddings=2**self.bit_per_digit,
                                         embedding_dim=128)
-        self.pretrained_cfg = pretrained_cfg
-    
+        # self.pretrained_cfg = pretrained_cfg
+        # self.vq_layer = KMeansQuantizer(num_embeddings=2**self.bit_per_digit,  # Số clusters
+        #                          embedding_dim=64,             # Chiều embedding
+        #                          commitment_cost=0.25)         # Hệ số commitment loss
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
             nn.init.xavier_uniform_(m.weight)
@@ -153,11 +154,12 @@ class ViT_FIM_CLS(nn.Module):
         # noise_var = torch.FloatTensor([1]).to(img.device) * 10**(-snr_db/20)
         x, cls_out = self.img_encoder(img, bm_pos, targets)
         x = self.encoder_to_channel(x)
-        # x, vq_loss = self.vq_layer(x, noise_snr, self.bit_per_digit)
-        x, vq_loss = self.vq_layer(x, snr_db, self.bit_per_digit)
+        # x, vq_loss = self.vq_layer(x, noise_snr, self.bit_per_digit) 
+        x, vq_loss = self.vq_layer(x, snr_db, self.bit_per_digit) #old things here
         # x, vq_loss = self.vq_layer(x, None, self.bit_per_digit)
         # x = power_norm_batchwise(x)
         # x = self.channel.Rayleigh(x, noise_var.item())
+        # x, vq_loss, _, _ = self.vq_layer(x) #this one to use kmeans
         x = self.channel_to_decoder(x)
         x = self.img_decoder(x)
         # x = self.head(x.view(x.shape[0],-1))
@@ -192,7 +194,7 @@ def ViT_Van_model(pretrained=False, **kwargs):
     return model
         
 @register_model
-def ViT_FIM_model_S(pretrained=False, **kwargs):
+def ViT_FIM_model_S(pretrained = False,**kwargs):
     model = ViT_FIM_CLS(
         img_size=224,
         patch_size=16,

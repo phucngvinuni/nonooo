@@ -765,3 +765,65 @@ class Channels():
         Rx_sig = torch.matmul(Rx_sig, torch.inverse(H)).view(shape)
 
         return Rx_sig
+    
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from sklearn.cluster import KMeans  # Sử dụng scikit-learn cho k-means
+
+class KMeansQuantizer(nn.Module):
+    def __init__(self, num_embeddings: int, embedding_dim: int, commitment_cost: float = 0.25, kmeans_init=True, kmeans_iters=10):
+        super().__init__()
+        self.num_embeddings = num_embeddings  # Số lượng centroids (codebook size)
+        self.embedding_dim = embedding_dim    # Chiều của embedding
+        self.commitment_cost = commitment_cost # Hệ số cho commitment loss
+        self.kmeans_init = kmeans_init       # Khởi tạo centroids bằng k-means++?
+        self.kmeans_iters = kmeans_iters       # Số lần lặp tối đa của k-means
+
+        # Khởi tạo embedding (codebook)
+        self.embedding = nn.Parameter(torch.randn(num_embeddings, embedding_dim))
+
+    def forward(self, x):
+        # x: [B, ..., embedding_dim]  (B: batch size, ...: các chiều khác)
+
+        # Flatten đầu vào
+        x_flat = x.view(-1, self.embedding_dim)  # [N, embedding_dim] (N = B * ...)
+
+        # Khởi tạo centroids bằng k-means++ (nếu cần)
+        if self.kmeans_init:
+            kmeans = KMeans(n_clusters=self.num_embeddings, init='k-means++', max_iter=self.kmeans_iters, n_init=1)
+            kmeans.fit(x_flat.detach().cpu().numpy()) #fit tren cpu
+            self.embedding.data.copy_(torch.from_numpy(kmeans.cluster_centers_).to(x.device)) #.to(x.device))
+            self.kmeans_init = False  # Chỉ khởi tạo một lần
+
+        # Tính khoảng cách Euclidean từ mỗi điểm đến các centroids
+        distances = (
+            torch.sum(x_flat**2, dim=1, keepdim=True)
+            + torch.sum(self.embedding**2, dim=1)
+            - 2 * torch.matmul(x_flat, self.embedding.t())
+        )  # [N, num_embeddings]
+
+        # Tìm centroid gần nhất (argmin)
+        encoding_indices = torch.argmin(distances, dim=1)  # [N]
+
+        # One-hot encoding
+        encodings = torch.zeros(encoding_indices.shape[0], self.num_embeddings, device=x.device)
+        encodings.scatter_(1, encoding_indices.unsqueeze(1), 1)  # [N, num_embeddings]
+
+        # Quantization
+        quantized = torch.matmul(encodings, self.embedding)  # [N, embedding_dim]
+        quantized = quantized.view(x.shape)  # Reshape lại kích thước ban đầu
+
+        # Commitment loss (để encoder tạo ra các vector gần với centroids)
+        e_latent_loss = F.mse_loss(quantized.detach(), x)
+        q_latent_loss = F.mse_loss(quantized, x.detach()) # q loss
+        loss = q_latent_loss + self.commitment_cost * e_latent_loss
+
+        # Straight-through estimator (copy gradient)
+        quantized = x + (quantized - x).detach()
+
+        # Tính perplexity (độ phức tạp, đo lường mức độ sử dụng codebook)
+        avg_probs = torch.mean(encodings, dim=0)
+        perplexity = torch.exp(-torch.sum(avg_probs * torch.log(avg_probs + 1e-10)))
+
+        return quantized, loss, perplexity, encoding_indices

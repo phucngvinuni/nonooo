@@ -9,7 +9,7 @@ from utils import *
 from tqdm import tqdm
 from PIL import Image
 from wp_utils import *
-from attack import FGSM_REG
+from reg_attack import FastGradientSignUntargeted
 from timm.data import Mixup
 from einops import rearrange
 from typing import Iterable, Optional
@@ -102,7 +102,7 @@ def evaluate(net: torch.nn.Module, dataloader: Iterable,
     ssim_meter = AverageMeter()
     
     channel = Channels()
-    attack = FGSM_REG(net, epsilon=0.016, alpha=0.016/5, min_val=0, max_val=1, max_iters=5)
+    attack = FastGradientSignUntargeted(net, epsilon=0.016, alpha=0.016/5, min_val=0, max_val=1, max_iters=5)
     
     with torch.no_grad():
         for batch_idx, (imgs, targets) in enumerate(dataloader):
@@ -149,23 +149,26 @@ def evaluate(net: torch.nn.Module, dataloader: Iterable,
     return test_stat
 
 
-def train_class_batch(model, samples, targets, bm_pos, criterion, train_type):
+# engine.py (Corrected - Option 1)
+def train_class_batch(model: torch.nn.Module, samples: torch.Tensor, targets: torch.Tensor,
+                      bm_pos: torch.Tensor, criterion: torch.nn.Module, train_type: str) -> tuple[torch.Tensor, torch.Tensor]:
+    """Computes loss for a batch."""
     if train_type.startswith('std'):
-        outputs = model(img=samples, bm_pos=bm_pos,targets=targets, _eval=False)
+        outputs = model(img=samples, bm_pos=bm_pos, targets=targets, _eval=False)
         outputs_x = outputs['out_x']
         loss = criterion(outputs_x, targets)
     elif train_type.startswith('fim'):
         outputs = model(img=samples, bm_pos=bm_pos, targets=targets, _eval=False)
         outputs_x = outputs['out_x']
-        if 'out_c' in outputs.keys():
-            fim_loss = 0.
-            for extra_output in outputs['out_c']:
-                fim_loss += F.cross_entropy(extra_output, targets)
-            fim_loss = fim_loss / len(outputs['out_c'])
-            loss = criterion(outputs_x, targets)
+        loss = criterion(outputs_x, targets)
+        if 'out_c' in outputs:
+            fim_loss = sum(F.cross_entropy(out, targets) for out in outputs['out_c']) / len(outputs['out_c'])
             loss += beta * fim_loss
-        if 'vq_loss' in outputs.keys():
+        if 'vq_loss' in outputs:
             loss += outputs['vq_loss']
+    else:  # <--- Add an else block
+        raise ValueError(f"Invalid train_type: {train_type}.  Must start with 'std' or 'fim'.")
+
     return loss, outputs_x
 
 
